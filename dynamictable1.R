@@ -92,11 +92,9 @@ flextable_format <- function(data) {
     valign(valign = "center", part = "header") %>%
     valign(valign = "top", part = "body") %>%
     colformat_num(big.mark = ",") %>%
-    fontsize(size = 12, part = "all") %>%
+    fontsize(size = 5, part = "all") %>%
     font(fontname = "Arial", part = "all") %>%
     border(border = fp_border_default(color = "#000000", width = 0.1), part = "all")}
-
-
 
 # Apply flextable formatting
 ft_nurse_fam <- flextable_format(nurse_fam_meas_data)
@@ -111,10 +109,48 @@ doc <- read_docx(doc_path)
 doc <- doc %>%
   cursor_bookmark("Appendix5") %>%
   body_add_par("", style = "Normal") %>%
-  body_end_section_landscape() %>%           # Switch to landscape orientation
-  body_add_flextable(ft_nurse_fam)
+  body_add_flextable(ft_nurse_fam)%>%  
+  body_end_section_landscape() 
+
+
+# Find latest EIC_MEAS_ file and read specific columns
+# pattern to identify your MEAS files
+meas_pattern <- "EIC_MEAS_" 
+# Find latest Nurse_Fam_Meas file
+latest_meas_file <- find_latest_file(path_loaded, meas_pattern)
+if(!is.null(latest_meas_file)) 
+  
+  
+  # Read and clean column names
+  meas_data <- read_csv(latest_meas_file,skip = 1) %>% 
+  clean_names() %>%
+  select(measure_id, measure_name, measure_frequency, column_number,column_name, data_type)
+
+# Remove unwanted column and tidy
+meas_data <- meas_data|>
+  rename_with(~ str_replace_all(., "_", " ") %>%
+                str_to_title(), .cols = everything()) |>
+  filter(!`Measure Id` %in% measures_to_remove)
+
+# Flextable for prettiness
+ft_meas <- flextable_format(meas_data)|> autofit()
+
+# Insert table into Word document at bookmark in landscape
+if (!is.null(ft_meas)) {
+  doc <- doc %>%
+    cursor_bookmark("Appendix6") %>%
+    body_add_par("", style = "Normal") %>%
+    body_add_flextable(ft_meas)%>%  
+    body_end_section_portrait()
+}
+
+# Clean and rename columns first
+meas_data <- meas_data |>
+  rename_with(~ str_replace_all(., "_", " ") %>%
+                str_to_title(), .cols = everything()) |>
+  filter(!`Measure Id` %in% measures_to_remove)
+
 
 
 # Save the updated Word document
 print(doc, target = file.path(path_loaded, "updated submission guidance.docx"))
-
